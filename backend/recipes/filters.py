@@ -5,10 +5,7 @@ from .models import Favorite, Recipe, ShoppingCart
 
 
 class RecipeFilter(django_filters.FilterSet):
-    tags = django_filters.CharFilter(
-        field_name='tags__slug',
-        lookup_expr='exact',
-    )
+    tags = django_filters.CharFilter(method='filter_tags')
     is_favorited = django_filters.NumberFilter(
         method='filter_is_favorited',
     )
@@ -19,6 +16,12 @@ class RecipeFilter(django_filters.FilterSet):
     class Meta:
         model = Recipe
         fields = ('author',)
+
+    def filter_tags(self, queryset, name, value):
+        tags = self.request.query_params.getlist('tags')
+        if tags:
+            return queryset.filter(tags__slug__in=tags).distinct()
+        return queryset
 
     def filter_is_favorited(self, queryset, name, value):
         user = self.request.user
