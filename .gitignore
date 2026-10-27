@@ -140,3 +140,7 @@ dmypy.json
 
 static/
 media/
+
+.DS_Store
+backend/*.sqlite3.backup
+backend/*.sqlite3.old
