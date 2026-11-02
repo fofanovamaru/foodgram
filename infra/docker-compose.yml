@@ -13,8 +13,8 @@ services:
       retries: 5
 
   backend:
+    image: fofanovamaru/foodgram_backend:latest
     container_name: foodgram-back
-    build: ../backend
     env_file:
       - .env
     environment:
@@ -30,14 +30,15 @@ services:
         condition: service_healthy
 
   frontend:
+    image: fofanovamaru/foodgram_frontend:latest
     container_name: foodgram-front
-    build: ../frontend
+    command: sh -c "cp -r build/. result_build/"
     volumes:
-      - ../frontend/:/app/result_build/
+      - ../frontend/build:/app/result_build
 
   nginx:
-    container_name: foodgram-proxy
     image: nginx:1.25.4-alpine
+    container_name: foodgram-proxy
     ports:
       - "80:80"
     volumes:
