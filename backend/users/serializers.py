@@ -44,6 +44,12 @@ class CustomUserSerializer(UserSerializer):
             following=obj,
         ).exists()
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if not data['first_name'] and not data['last_name']:
+            data['first_name'] = instance.username
+        return data
+
 
 class SubscriptionSerializer(CustomUserSerializer):
     recipes = serializers.SerializerMethodField()
