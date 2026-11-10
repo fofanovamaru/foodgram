@@ -78,6 +78,7 @@ class RecipeReadSerializer(serializers.ModelSerializer):
             and obj.in_shopping_carts.filter(user=request.user).exists()
         )
 
+
 class RecipeIngredientWriteSerializer(serializers.Serializer):
     id = serializers.PrimaryKeyRelatedField(
         queryset=Ingredient.objects.all(),
