@@ -1,3 +1,8 @@
+import base64
+import binascii
+import uuid
+
+from django.core.files.base import ContentFile
 from djoser.serializers import UserCreateSerializer, UserSerializer
 from rest_framework import serializers
 
@@ -78,7 +83,43 @@ class SubscriptionSerializer(CustomUserSerializer):
             context=self.context,
         ).data
 
+
+class Base64ImageField(serializers.ImageField):
+    def to_internal_value(self, data):
+        if isinstance(data, str) and data.startswith('data:image/'):
+            try:
+                header, encoded = data.split(',', 1)
+                image_type = header.split(';')[0].split('/')[-1].lower()
+
+                extensions = {
+                    'jpeg': 'jpg',
+                    'jpg': 'jpg',
+                    'png': 'png',
+                }
+                extension = extensions.get(image_type)
+
+                if not extension:
+                    raise serializers.ValidationError(
+                        'Поддерживаются только JPG и PNG.'
+                    )
+
+                decoded = base64.b64decode(encoded, validate=True)
+
+                data = ContentFile(
+                    decoded,
+                    name=f'avatar_{uuid.uuid4().hex}.{extension}',
+                )
+            except (ValueError, binascii.Error):
+                raise serializers.ValidationError(
+                    'Некорректный формат изображения.'
+                )
+
+        return super().to_internal_value(data)
+
+
 class AvatarSerializer(serializers.ModelSerializer):
+    avatar = Base64ImageField()
+
     class Meta:
         model = User
         fields = ('avatar',)
