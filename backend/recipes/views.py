@@ -1,10 +1,9 @@
 from django.db.models import Sum
-from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import (
     AllowAny,
     IsAuthenticated,
@@ -21,12 +20,15 @@ from .models import (
     ShoppingCart,
     Tag,
 )
+from .permissions import IsAuthorOrReadOnly
 from .serializers import (
     IngredientSerializer,
     RecipeReadSerializer,
+    RecipeShortSerializer,
     RecipeWriteSerializer,
     TagSerializer,
 )
+from .utils import create_shopping_cart_file
 
 
 class TagViewSet(viewsets.ReadOnlyModelViewSet):
@@ -40,6 +42,7 @@ class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Ingredient.objects.all()
     serializer_class = IngredientSerializer
     permission_classes = (AllowAny,)
+    pagination_class = None
     filter_backends = (filters.SearchFilter,)
     search_fields = ('^name',)
 
@@ -51,7 +54,10 @@ class RecipeViewSet(viewsets.ModelViewSet):
         'tags',
         'recipe_ingredients__ingredient',
     )
-    permission_classes = (IsAuthenticatedOrReadOnly,)
+    permission_classes = (
+        IsAuthenticatedOrReadOnly,
+        IsAuthorOrReadOnly,
+    )
     filter_backends = (DjangoFilterBackend,)
     filterset_class = RecipeFilter
 
@@ -59,20 +65,6 @@ class RecipeViewSet(viewsets.ModelViewSet):
         if self.action in ('create', 'update', 'partial_update'):
             return RecipeWriteSerializer
         return RecipeReadSerializer
-
-    def perform_update(self, serializer):
-        if serializer.instance.author != self.request.user:
-            raise PermissionDenied(
-                'Изменять можно только свои рецепты.'
-            )
-        serializer.save()
-
-    def perform_destroy(self, instance):
-        if instance.author != self.request.user:
-            raise PermissionDenied(
-                'Удалять можно только свои рецепты.'
-            )
-        instance.delete()
 
     def _change_user_recipe_relation(self, request, model):
         recipe = self.get_object()
@@ -88,7 +80,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
             )
 
         return Response(
-            RecipeReadSerializer(
+            RecipeShortSerializer(
                 recipe,
                 context=self.get_serializer_context(),
             ).data,
@@ -112,28 +104,32 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
-        methods=('post', 'delete'),
+        methods=('post',),
         permission_classes=(IsAuthenticated,),
     )
     def favorite(self, request, pk=None):
-        if request.method == 'POST':
-            return self._change_user_recipe_relation(
-                request, Favorite
-            )
+        return self._change_user_recipe_relation(
+            request, Favorite
+        )
+
+    @favorite.mapping.delete
+    def remove_favorite(self, request, pk=None):
         return self._remove_user_recipe_relation(
             request, Favorite
         )
 
     @action(
         detail=True,
-        methods=('post', 'delete'),
+        methods=('post',),
         permission_classes=(IsAuthenticated,),
     )
     def shopping_cart(self, request, pk=None):
-        if request.method == 'POST':
-            return self._change_user_recipe_relation(
-                request, ShoppingCart
-            )
+        return self._change_user_recipe_relation(
+            request, ShoppingCart
+        )
+
+    @shopping_cart.mapping.delete
+    def remove_from_shopping_cart(self, request, pk=None):
         return self._remove_user_recipe_relation(
             request, ShoppingCart
         )
@@ -167,23 +163,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
             total_amount=Sum('amount'),
         ).order_by('ingredient__name')
 
-        lines = ['Список покупок', '']
-
-        for item in ingredients:
-            lines.append(
-                f"{item['ingredient__name']} "
-                f"({item['ingredient__measurement_unit']}) — "
-                f"{item['total_amount']}"
-            )
-
-        response = HttpResponse(
-            '\n'.join(lines),
-            content_type='text/plain; charset=utf-8',
-        )
-        response['Content-Disposition'] = (
-            'attachment; filename="shopping_list.txt"'
-        )
-        return response
+        return create_shopping_cart_file(ingredients)
 
 
 def redirect_to_recipe(request, recipe_id):

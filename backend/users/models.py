@@ -1,6 +1,8 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
+from .constants import EMAIL_MAX_LENGTH
+
 
 class User(AbstractUser):
     USERNAME_FIELD = 'email'
@@ -9,12 +11,14 @@ class User(AbstractUser):
     email = models.EmailField(
         'Электронная почта',
         unique=True,
-        max_length=254,
+        max_length=EMAIL_MAX_LENGTH,
     )
+
     avatar = models.ImageField(
         'Аватар',
         upload_to='users/',
         blank=True,
+        default='',
     )
 
 
@@ -31,6 +35,8 @@ class Follow(models.Model):
     )
 
     class Meta:
+        verbose_name = 'Подписка'
+        verbose_name_plural = 'Подписки'
         constraints = [
             models.UniqueConstraint(
                 fields=('user', 'following'),

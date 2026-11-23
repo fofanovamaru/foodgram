@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'users',
     'recipes',
+    'drf_spectacular',
 ]
 
 MIDDLEWARE = [
@@ -123,9 +124,9 @@ REST_FRAMEWORK = {
         'django_filters.rest_framework.DjangoFilterBackend',
     ],
     'DEFAULT_PAGINATION_CLASS': (
-        'rest_framework.pagination.PageNumberPagination'
+        'recipes.pagination.CustomPagination'
     ),
-    'PAGE_SIZE': 6,
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
 DJOSER = {
@@ -140,3 +141,10 @@ DJOSER = {
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Foodgram API',
+    'DESCRIPTION': 'Документация API проекта Foodgram',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+}

@@ -1,12 +1,31 @@
 from django.contrib import admin
 from django.urls import include, path
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularSwaggerView,
+)
 
 from recipes.views import redirect_to_recipe
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('djoser.urls.authtoken')),
-    path('s/<int:recipe_id>/', redirect_to_recipe, name='short-link'),
+    path(
+        's/<int:recipe_id>/',
+        redirect_to_recipe,
+        name='short-link',
+    ),
+    path(
+        'api/schema/',
+        SpectacularAPIView.as_view(),
+        name='schema',
+    ),
+    path(
+        'api/docs/',
+        SpectacularSwaggerView.as_view(url_name='schema'),
+        name='swagger-ui',
+    ),
     path('api/', include('recipes.urls')),
     path('api/', include('users.urls')),
 ]

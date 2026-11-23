@@ -3,13 +3,16 @@ from djoser.views import UserViewSet
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import Follow, User
 from .serializers import (
     AvatarSerializer,
     CustomUserSerializer,
+)
+from .subscription_serializers import (
+    SubscribeSerializer,
     SubscriptionSerializer,
 )
 
@@ -17,16 +20,6 @@ from .serializers import (
 class CustomUserViewSet(UserViewSet):
     queryset = User.objects.all()
     serializer_class = CustomUserSerializer
-
-    def get_permissions(self):
-        if self.action in (
-            'me',
-            'avatar',
-            'subscriptions',
-            'subscribe',
-        ):
-            return [IsAuthenticated()]
-        return [AllowAny()]
 
     @action(
         detail=False,
@@ -36,7 +29,7 @@ class CustomUserViewSet(UserViewSet):
     def subscriptions(self, request):
         users = User.objects.filter(
             followers__user=request.user,
-        ).distinct().order_by('id')
+        ).order_by('id')
 
         page = self.paginate_queryset(users)
         serializer = SubscriptionSerializer(
@@ -51,36 +44,31 @@ class CustomUserViewSet(UserViewSet):
 
     @action(
         detail=True,
-        methods=('post', 'delete'),
+        methods=('post',),
         permission_classes=(IsAuthenticated,),
     )
     def subscribe(self, request, id=None):
         target_user = get_object_or_404(User, id=id)
 
-        if request.method == 'POST':
-            if target_user == request.user:
-                raise ValidationError(
-                    {'errors': 'Нельзя подписаться на себя.'}
-                )
+        serializer = SubscribeSerializer(
+            data={'following': target_user.id},
+            context=self.get_serializer_context(),
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save(user=request.user)
 
-            _, created = Follow.objects.get_or_create(
-                user=request.user,
-                following=target_user,
-            )
+        response_serializer = SubscriptionSerializer(
+            target_user,
+            context=self.get_serializer_context(),
+        )
+        return Response(
+            response_serializer.data,
+            status=status.HTTP_201_CREATED,
+        )
 
-            if not created:
-                raise ValidationError(
-                    {'errors': 'Вы уже подписаны на этого пользователя.'}
-                )
-
-            serializer = SubscriptionSerializer(
-                target_user,
-                context=self.get_serializer_context(),
-            )
-            return Response(
-                serializer.data,
-                status=status.HTTP_201_CREATED,
-            )
+    @subscribe.mapping.delete
+    def unsubscribe(self, request, id=None):
+        target_user = get_object_or_404(User, id=id)
 
         deleted, _ = Follow.objects.filter(
             user=request.user,
@@ -96,20 +84,20 @@ class CustomUserViewSet(UserViewSet):
 
     @action(
         detail=False,
-        methods=('put', 'delete'),
+        methods=('put',),
         url_path='me/avatar',
         permission_classes=(IsAuthenticated,),
     )
     def avatar(self, request):
-        if request.method == 'PUT':
-            serializer = AvatarSerializer(
-                request.user,
-                data=request.data,
-                partial=True,
-            )
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-            return Response(serializer.data)
+        serializer = AvatarSerializer(
+            request.user,
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
 
+    @avatar.mapping.delete
+    def delete_avatar(self, request):
         request.user.avatar.delete(save=True)
         return Response(status=status.HTTP_204_NO_CONTENT)

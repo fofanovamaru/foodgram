@@ -1,11 +1,15 @@
 import django_filters
 from django.db.models import Exists, OuterRef
 
-from .models import Favorite, Recipe, ShoppingCart
+from .models import Favorite, Recipe, ShoppingCart, Tag
 
 
 class RecipeFilter(django_filters.FilterSet):
-    tags = django_filters.CharFilter(method='filter_tags')
+    tags = django_filters.ModelMultipleChoiceFilter(
+        field_name='tags__slug',
+        to_field_name='slug',
+        queryset=Tag.objects.all(),
+    )
     is_favorited = django_filters.NumberFilter(
         method='filter_is_favorited',
     )
@@ -16,12 +20,6 @@ class RecipeFilter(django_filters.FilterSet):
     class Meta:
         model = Recipe
         fields = ('author',)
-
-    def filter_tags(self, queryset, name, value):
-        tags = self.request.query_params.getlist('tags')
-        if tags:
-            return queryset.filter(tags__slug__in=tags).distinct()
-        return queryset
 
     def filter_is_favorited(self, queryset, name, value):
         user = self.request.user
